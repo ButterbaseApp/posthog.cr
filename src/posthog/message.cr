@@ -59,10 +59,43 @@ module PostHog
     end
   end
 
+  # Result of attempting to add a message to a batch
+  enum BatchAddResult
+    # Message was added successfully
+    Added
+    # Batch is full (by count or byte size), message not added
+    BatchFull
+    # Individual message exceeds max message size
+    MessageTooLarge
+  end
+
   # A batch of messages ready to be sent
+  #
+  # Enforces PostHog API limits:
+  # - Max 32KB per message
+  # - Max 500KB per batch
+  # - Max 100 messages per batch (configurable)
+  #
+  # Example:
+  # ```
+  # batch = MessageBatch.new
+  # case batch.add(message)
+  # when .added?
+  #   puts "Message queued"
+  # when .batch_full?
+  #   # Send current batch, then retry
+  #   transport.send(api_key, batch)
+  #   batch.clear
+  #   batch.add(message)
+  # when .message_too_large?
+  #   puts "Message dropped: exceeds 32KB limit"
+  # end
+  # ```
   class MessageBatch
     getter messages : Array(Message)
     getter json_size : Int32
+    getter max_size : Int32
+    getter max_bytes : Int32
 
     def initialize(@max_size : Int32 = Defaults::BATCH_SIZE, @max_bytes : Int32 = Defaults::MAX_BATCH_BYTES)
       @messages = [] of Message
@@ -71,13 +104,22 @@ module PostHog
 
     # Try to add a message to the batch
     # Returns true if added, false if batch is full or message too large
+    #
+    # @deprecated Use `add` instead for more detailed result information
     def <<(message : Message) : Bool
+      add(message).added?
+    end
+
+    # Add a message to the batch with detailed result
+    #
+    # Returns BatchAddResult indicating success or reason for failure.
+    def add(message : Message) : BatchAddResult
       message_json = message.to_json
       message_bytes = message_json.bytesize
 
       # Check if single message exceeds limit
       if message_bytes > Defaults::MAX_MESSAGE_BYTES
-        return false
+        return BatchAddResult::MessageTooLarge
       end
 
       # Account for comma separator if not first message
@@ -86,12 +128,12 @@ module PostHog
 
       # Check if adding would exceed batch limits
       if @messages.size >= @max_size || new_size > @max_bytes
-        return false
+        return BatchAddResult::BatchFull
       end
 
       @messages << message
       @json_size = new_size
-      true
+      BatchAddResult::Added
     end
 
     # Check if the batch is full
@@ -109,6 +151,16 @@ module PostHog
       @messages.size
     end
 
+    # Remaining capacity in messages (by count)
+    def remaining_capacity : Int32
+      @max_size - @messages.size
+    end
+
+    # Remaining capacity in bytes (approximate)
+    def remaining_bytes : Int32
+      @max_bytes - @json_size
+    end
+
     # Clear the batch
     def clear : Nil
       @messages.clear
@@ -121,6 +173,11 @@ module PostHog
         "api_key" => api_key,
         "batch"   => @messages,
       }.to_json
+    end
+
+    # Total payload size in bytes (including api_key wrapper)
+    def payload_size(api_key : String) : Int32
+      to_json_payload(api_key).bytesize
     end
   end
 end

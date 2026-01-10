@@ -6,22 +6,46 @@ require "../src/posthog"
 # Create a simple mock transport for testing
 class MockTransport < PostHog::Transport
   getter requests : Array(Tuple(String, PostHog::MessageBatch))
-  property response : PostHog::TransportResponse
+  property response : PostHog::Response
+  property responses : Array(PostHog::Response)?
+  @response_index : Int32 = 0
 
   def initialize
     super(host: "https://test.posthog.com")
     @requests = [] of Tuple(String, PostHog::MessageBatch)
-    @response = PostHog::TransportResponse.new(200)
+    @response = PostHog::Response.new(200)
+    @responses = nil
+    @response_index = 0
   end
 
-  def send(api_key : String, batch : PostHog::MessageBatch) : PostHog::TransportResponse
+  def send(api_key : String, batch : PostHog::MessageBatch) : PostHog::Response
     # Clone messages since batch may be cleared
     @requests << {api_key, batch}
-    @response
+
+    # If multiple responses configured, cycle through them
+    if resps = @responses
+      resp = resps[@response_index]? || resps.last
+      @response_index += 1
+      resp
+    else
+      @response
+    end
+  end
+
+  # Override send_once to use the same mock behavior
+  def send_once(api_key : String, batch : PostHog::MessageBatch) : PostHog::Response
+    send(api_key, batch)
   end
 
   def clear : Nil
     @requests.clear
+    @response_index = 0
+  end
+
+  # Configure a sequence of responses for retry testing
+  def set_responses(responses : Array(PostHog::Response)) : Nil
+    @responses = responses
+    @response_index = 0
   end
 end
 

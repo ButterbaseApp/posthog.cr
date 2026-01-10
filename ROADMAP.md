@@ -66,46 +66,46 @@ The foundation: async event capture with background fiber worker.
 Production-ready HTTP transport with retries, timeouts, and testability.
 
 ### HTTP Transport
-- [ ] `src/posthog/transport.cr` — HTTP adapter abstraction
-- [ ] `src/posthog/backoff_policy.cr` — Exponential backoff with jitter
-- [ ] `src/posthog/message_batch.cr` — Batch with size limits
-- [ ] `src/posthog/response.cr` — Response wrapper
+- [x] `src/posthog/transport.cr` — HTTP adapter abstraction
+- [x] `src/posthog/backoff_policy.cr` — Exponential backoff with jitter
+- [x] `src/posthog/message_batch.cr` — Batch with size limits
+- [x] `src/posthog/response.cr` — Response wrapper
 
 ### Transport Features
-- [ ] POST to `/batch` endpoint with JSON payload
-- [ ] `Content-Type: application/json` header
-- [ ] `User-Agent: posthog-crystal/{version}` header
-- [ ] Configurable request timeout (default: 10s)
-- [ ] `skip_ssl_verification` option for development
+- [x] POST to `/batch` endpoint with JSON payload
+- [x] `Content-Type: application/json` header
+- [x] `User-Agent: posthog-crystal/{version}` header
+- [x] Configurable request timeout (default: 10s)
+- [x] `skip_ssl_verification` option for development
 
 ### Retry Policy
-- [ ] Retry on 5xx server errors
-- [ ] Retry on 429 rate limit
-- [ ] No retry on 4xx client errors (except 429)
-- [ ] Exponential backoff: min 100ms, max 10s, multiplier 1.5
-- [ ] Jitter to prevent thundering herd
-- [ ] Max retries (default: 10)
+- [x] Retry on 5xx server errors
+- [x] Retry on 429 rate limit
+- [x] No retry on 4xx client errors (except 429)
+- [x] Exponential backoff: min 100ms, max 10s, multiplier 1.5
+- [x] Jitter to prevent thundering herd
+- [x] Max retries (default: 10)
 
 ### Batch Limits
-- [ ] Max message size: 32KB
-- [ ] Max batch size: 500KB
-- [ ] Max messages per batch: 100
-- [ ] Drop oversized messages with warning
+- [x] Max message size: 32KB
+- [x] Max batch size: 500KB
+- [x] Max messages per batch: 100
+- [x] Drop oversized messages with warning
 
 ### Sync Mode
-- [ ] `async : Bool` option (default: true)
-- [ ] When `async: false`, send immediately without queue
+- [x] `async : Bool` option (default: true)
+- [x] When `async: false`, send immediately without queue
 
 ### Tests (Phase 2)
-- [ ] Transport sends correct headers and payload shape
-- [ ] Retry on 5xx and 429
-- [ ] No retry on 400, 401, 403, 404
-- [ ] Backoff timing and jitter
-- [ ] Request timeout handling
-- [ ] SSL skip option
-- [ ] Sync mode behavior
-- [ ] Batch size limit enforcement
-- [ ] Oversized message handling
+- [x] Transport sends correct headers and payload shape
+- [x] Retry on 5xx and 429
+- [x] No retry on 400, 401, 403, 404
+- [x] Backoff timing and jitter
+- [x] Request timeout handling
+- [x] SSL skip option
+- [x] Sync mode behavior
+- [x] Batch size limit enforcement
+- [x] Oversized message handling
 
 ---
 

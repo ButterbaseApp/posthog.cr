@@ -256,9 +256,15 @@ module PostHog
         true
       else
         # Sync mode: send immediately
-        batch = MessageBatch.new(1)
-        batch << message
+        batch = MessageBatch.new(max_size: 1)
+        unless batch.add(message).added?
+          Log.error { "Failed to add message to batch in sync mode" }
+          return false
+        end
         response = @transport.send(@config.api_key, batch)
+        unless response.success?
+          report_error(response.status, response.error_message)
+        end
         response.success?
       end
     end

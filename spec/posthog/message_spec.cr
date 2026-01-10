@@ -105,8 +105,76 @@ describe PostHog::Message do
   end
 end
 
+describe PostHog::BatchAddResult do
+  it "has Added, BatchFull, and MessageTooLarge values" do
+    PostHog::BatchAddResult::Added.should be_a(PostHog::BatchAddResult)
+    PostHog::BatchAddResult::BatchFull.should be_a(PostHog::BatchAddResult)
+    PostHog::BatchAddResult::MessageTooLarge.should be_a(PostHog::BatchAddResult)
+  end
+end
+
 describe PostHog::MessageBatch do
-  describe "#<<" do
+  describe "#add" do
+    it "adds message to batch and returns Added" do
+      batch = PostHog::MessageBatch.new
+      message = create_test_message
+
+      result = batch.add(message)
+
+      result.should eq PostHog::BatchAddResult::Added
+      result.added?.should be_true
+      batch.size.should eq 1
+    end
+
+    it "returns BatchFull when batch is full by count" do
+      batch = PostHog::MessageBatch.new(max_size: 2)
+
+      batch.add(create_test_message).added?.should be_true
+      batch.add(create_test_message).added?.should be_true
+      batch.add(create_test_message).batch_full?.should be_true
+
+      batch.size.should eq 2
+    end
+
+    it "returns MessageTooLarge for oversized message" do
+      batch = PostHog::MessageBatch.new
+
+      # Create a message with properties that exceed 32KB
+      large_value = "x" * 40_000
+      large_message = PostHog::Message.new(
+        type: "capture",
+        event: "test",
+        distinct_id: "user",
+        timestamp: "2024-01-15T10:00:00.000Z",
+        message_id: "msg",
+        properties: props(large: large_value)
+      )
+
+      result = batch.add(large_message)
+      result.should eq PostHog::BatchAddResult::MessageTooLarge
+      result.message_too_large?.should be_true
+      batch.size.should eq 0
+    end
+
+    it "returns BatchFull when batch exceeds byte limit" do
+      # Create a small batch that fills up quickly
+      batch = PostHog::MessageBatch.new(max_size: 100, max_bytes: 1000)
+
+      # Add messages until we hit the byte limit
+      count = 0
+      loop do
+        result = batch.add(create_test_message)
+        break unless result.added?
+        count += 1
+        break if count > 50 # Safety limit
+      end
+
+      count.should be > 0
+      count.should be < 100 # Should hit byte limit before count limit
+    end
+  end
+
+  describe "#<< (deprecated)" do
     it "adds message to batch" do
       batch = PostHog::MessageBatch.new
       message = create_test_message
@@ -201,6 +269,58 @@ describe PostHog::MessageBatch do
 
       parsed["api_key"].as_s.should eq "test_api_key"
       parsed["batch"].as_a.size.should eq 1
+    end
+  end
+
+  describe "#remaining_capacity" do
+    it "returns remaining message slots" do
+      batch = PostHog::MessageBatch.new(max_size: 10)
+
+      batch.remaining_capacity.should eq 10
+
+      batch.add(create_test_message)
+      batch.remaining_capacity.should eq 9
+
+      batch.add(create_test_message)
+      batch.remaining_capacity.should eq 8
+    end
+  end
+
+  describe "#remaining_bytes" do
+    it "returns remaining byte capacity" do
+      batch = PostHog::MessageBatch.new(max_bytes: 10000)
+
+      initial = batch.remaining_bytes
+      initial.should be > 0
+
+      batch.add(create_test_message)
+      batch.remaining_bytes.should be < initial
+    end
+  end
+
+  describe "#payload_size" do
+    it "returns total payload size" do
+      batch = PostHog::MessageBatch.new
+      batch.add(create_test_message)
+
+      size = batch.payload_size("test_api_key")
+      payload = batch.to_json_payload("test_api_key")
+
+      size.should eq payload.bytesize
+    end
+  end
+
+  describe "#max_size" do
+    it "exposes max_size setting" do
+      batch = PostHog::MessageBatch.new(max_size: 50)
+      batch.max_size.should eq 50
+    end
+  end
+
+  describe "#max_bytes" do
+    it "exposes max_bytes setting" do
+      batch = PostHog::MessageBatch.new(max_bytes: 100000)
+      batch.max_bytes.should eq 100000
     end
   end
 end

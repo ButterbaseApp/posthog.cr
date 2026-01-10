@@ -58,28 +58,26 @@ module PostHog
           # Signal that we've consumed a message from the queue
           @on_message_processed.try(&.call)
 
-          unless batch << message
-            # Batch is full or message too large, send current batch first
+          case batch.add(message)
+          when .added?
+            # Check if batch is full after adding
             if batch.full?
               send_batch(batch)
               batch.clear
-              # Try adding message again
-              unless batch << message
-                # Message itself is too large
-                Log.warn { "Message too large, dropping (#{message.byte_size} bytes)" }
-                report_error(-1, "Message too large: #{message.byte_size} bytes")
-              end
-            else
-              # Message is too large on its own
+            end
+          when .batch_full?
+            # Batch is full, send current batch first
+            send_batch(batch)
+            batch.clear
+            # Try adding message again
+            case batch.add(message)
+            when .message_too_large?
               Log.warn { "Message too large, dropping (#{message.byte_size} bytes)" }
               report_error(-1, "Message too large: #{message.byte_size} bytes")
             end
-          end
-
-          # Check if batch is full after adding
-          if batch.full?
-            send_batch(batch)
-            batch.clear
+          when .message_too_large?
+            Log.warn { "Message too large, dropping (#{message.byte_size} bytes)" }
+            report_error(-1, "Message too large: #{message.byte_size} bytes")
           end
 
         when control = @control_channel.receive?
@@ -118,12 +116,14 @@ module PostHog
           # Signal that we've consumed a message from the queue
           @on_message_processed.try(&.call)
 
-          unless batch << message
-            if batch.full?
-              send_batch(batch)
-              batch.clear
-              batch << message
-            end
+          case batch.add(message)
+          when .batch_full?
+            send_batch(batch)
+            batch.clear
+            batch.add(message)
+          when .message_too_large?
+            Log.warn { "Message too large, dropping (#{message.byte_size} bytes)" }
+            report_error(-1, "Message too large: #{message.byte_size} bytes")
           end
         else
           # No more messages
@@ -144,7 +144,7 @@ module PostHog
 
         unless response.success?
           Log.warn { "Failed to send batch: status=#{response.status}" }
-          report_error(response.status, response.error || "HTTP #{response.status}")
+          report_error(response.status, response.error_message)
         end
       ensure
         @requesting = false
