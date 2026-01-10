@@ -15,6 +15,7 @@ module PostHog
     @control_channel : Channel(Worker::Control)
     @queue_size : Atomic(Int32)
     @shutdown : Bool = false
+    @feature_flags_client : FeatureFlagsClient
 
     def initialize(
       api_key : String,
@@ -52,6 +53,7 @@ module PostHog
       @message_channel = Channel(Message).new(@config.max_queue_size)
       @control_channel = Channel(Worker::Control).new(10)
       @queue_size = Atomic(Int32).new(0)
+      @feature_flags_client = FeatureFlagsClient.new(@config)
 
       if @config.async
         on_processed = ->{ @queue_size.sub(1); nil }
@@ -78,8 +80,15 @@ module PostHog
       uuid : String? = nil,
       send_feature_flags : Bool = false
     ) : Bool
-      # TODO: Implement send_feature_flags in Phase 3
-      feature_variants = nil
+      # Fetch feature flags if requested
+      feature_variants = if send_feature_flags
+                           @feature_flags_client.get_feature_variants_for_capture(
+                             distinct_id: distinct_id,
+                             groups: groups
+                           )
+                         else
+                           nil
+                         end
 
       message = FieldParser.parse_for_capture(
         distinct_id: distinct_id,
@@ -174,6 +183,156 @@ module PostHog
       false
     end
 
+    # ===== Feature Flags API =====
+
+    # Check if a feature flag is enabled for a user
+    #
+    # Returns:
+    # - `true` if the flag is enabled
+    # - `false` if the flag is disabled
+    # - `nil` if the flag is not found or there was an error
+    #
+    # ```
+    # if client.feature_enabled?("new-feature", "user_123")
+    #   # Show new feature
+    # end
+    # ```
+    def feature_enabled?(
+      key : String,
+      distinct_id : String,
+      groups : Hash(String, String)? = nil,
+      person_properties : Properties? = nil,
+      group_properties : Hash(String, Properties)? = nil,
+      only_evaluate_locally : Bool = false
+    ) : Bool?
+      @feature_flags_client.feature_enabled?(
+        key: key,
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
+      )
+    end
+
+    # Get the value of a feature flag
+    #
+    # Returns:
+    # - `true` or `false` for boolean flags
+    # - A variant string for multivariate flags
+    # - `nil` if the flag is not found or there was an error
+    #
+    # ```
+    # variant = client.feature_flag("experiment", "user_123")
+    # case variant
+    # when "control"
+    #   # Control group
+    # when "test"
+    #   # Test group
+    # end
+    # ```
+    def feature_flag(
+      key : String,
+      distinct_id : String,
+      groups : Hash(String, String)? = nil,
+      person_properties : Properties? = nil,
+      group_properties : Hash(String, Properties)? = nil,
+      only_evaluate_locally : Bool = false
+    ) : FeatureFlags::FlagValue
+      @feature_flags_client.feature_flag(
+        key: key,
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
+      )
+    end
+
+    # Get all feature flags for a user
+    #
+    # Returns a hash of flag keys to their values (true, false, or variant string)
+    #
+    # ```
+    # flags = client.all_flags("user_123")
+    # flags.each do |key, value|
+    #   puts "#{key}: #{value}"
+    # end
+    # ```
+    def all_flags(
+      distinct_id : String,
+      groups : Hash(String, String)? = nil,
+      person_properties : Properties? = nil,
+      group_properties : Hash(String, Properties)? = nil,
+      only_evaluate_locally : Bool = false
+    ) : Hash(String, FeatureFlags::FlagValue)
+      @feature_flags_client.all_flags(
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
+      )
+    end
+
+    # Get the payload for a specific feature flag
+    #
+    # Feature flag payloads allow you to attach JSON data to flag variants.
+    # Returns `nil` if the flag has no payload or doesn't exist.
+    #
+    # ```
+    # payload = client.feature_flag_payload("my-flag", "user_123")
+    # if config = payload
+    #   puts config["color"]?
+    # end
+    # ```
+    def feature_flag_payload(
+      key : String,
+      distinct_id : String,
+      groups : Hash(String, String)? = nil,
+      person_properties : Properties? = nil,
+      group_properties : Hash(String, Properties)? = nil,
+      only_evaluate_locally : Bool = false
+    ) : JSON::Any?
+      @feature_flags_client.feature_flag_payload(
+        key: key,
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
+      )
+    end
+
+    # Get all flags and their payloads for a user
+    #
+    # Returns a NamedTuple with:
+    # - `flags` - Hash of flag keys to values
+    # - `payloads` - Hash of flag keys to payloads
+    #
+    # ```
+    # result = client.all_flags_and_payloads("user_123")
+    # result[:flags].each { |k, v| puts "Flag #{k}: #{v}" }
+    # result[:payloads].each { |k, v| puts "Payload #{k}: #{v}" }
+    # ```
+    def all_flags_and_payloads(
+      distinct_id : String,
+      groups : Hash(String, String)? = nil,
+      person_properties : Properties? = nil,
+      group_properties : Hash(String, Properties)? = nil,
+      only_evaluate_locally : Bool = false
+    ) : NamedTuple(flags: Hash(String, FeatureFlags::FlagValue), payloads: Hash(String, JSON::Any))
+      @feature_flags_client.all_flags_and_payloads(
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
+      )
+    end
+
+    # ===== Lifecycle Methods =====
+
     # Flush all pending messages synchronously
     # Blocks until the queue is empty
     def flush : Nil
@@ -194,6 +353,9 @@ module PostHog
       return if @shutdown
       @shutdown = true
 
+      # Flush any pending $feature_flag_called events
+      flush_feature_flag_events
+
       if @config.async
         @control_channel.send(Worker::Control::Shutdown)
         # Wait for worker to finish
@@ -202,6 +364,7 @@ module PostHog
         end
       end
 
+      @feature_flags_client.shutdown
       @transport.shutdown
       @message_channel.close
       @control_channel.close
@@ -215,6 +378,18 @@ module PostHog
     # Check if the client has been shut down
     def shutdown? : Bool
       @shutdown
+    end
+
+    # Flush pending $feature_flag_called events
+    private def flush_feature_flag_events : Nil
+      events = @feature_flags_client.flush_flag_call_events
+      events.each do |event|
+        capture(
+          distinct_id: event.distinct_id,
+          event: "$feature_flag_called",
+          properties: event.to_properties
+        )
+      end
     end
 
     private def enqueue(message : Message) : Bool

@@ -114,41 +114,41 @@ Production-ready HTTP transport with retries, timeouts, and testability.
 Server-side feature flag evaluation via `/flags` API.
 
 ### Module Structure
-- [ ] `src/posthog/feature_flags.cr` — Feature flag client
-- [ ] `src/posthog/feature_flags/response.cr` — API response types
+- [x] `src/posthog/feature_flags.cr` — Feature flag client
+- [x] `src/posthog/feature_flags/response.cr` — API response types
 
 ### Feature Flag API
-- [ ] `feature_enabled?(key, distinct_id, **opts) : Bool?` — Check if flag enabled
-- [ ] `feature_flag(key, distinct_id, **opts) : String | Bool | Nil` — Get flag value/variant
-- [ ] `all_flags(distinct_id, **opts) : Hash` — Get all flags for user
-- [ ] `feature_flag_payload(key, distinct_id, **opts) : JSON::Any?` — Get flag payload
-- [ ] `all_flags_and_payloads(distinct_id, **opts) : NamedTuple` — Get all flags and payloads
+- [x] `feature_enabled?(key, distinct_id, **opts) : Bool?` — Check if flag enabled
+- [x] `feature_flag(key, distinct_id, **opts) : String | Bool | Nil` — Get flag value/variant
+- [x] `all_flags(distinct_id, **opts) : Hash` — Get all flags for user
+- [x] `feature_flag_payload(key, distinct_id, **opts) : JSON::Any?` — Get flag payload
+- [x] `all_flags_and_payloads(distinct_id, **opts) : NamedTuple` — Get all flags and payloads
 
 ### Options for Flag Methods
-- [ ] `groups : Hash` — Group memberships
-- [ ] `person_properties : Hash` — Person properties for evaluation
-- [ ] `group_properties : Hash` — Group properties for evaluation
-- [ ] `only_evaluate_locally : Bool` — Skip server fallback
+- [x] `groups : Hash` — Group memberships
+- [x] `person_properties : Hash` — Person properties for evaluation
+- [x] `group_properties : Hash` — Group properties for evaluation
+- [x] `only_evaluate_locally : Bool` — Skip server fallback
 
 ### Integration with Capture
-- [ ] `send_feature_flags` option on `capture`
-- [ ] Inject `$feature/{flag_key}` properties
-- [ ] Inject `$active_feature_flags` array
+- [x] `send_feature_flags` option on `capture`
+- [x] Inject `$feature/{flag_key}` properties
+- [x] Inject `$active_feature_flags` array
 
 ### Feature Flag Events
-- [ ] Emit `$feature_flag_called` event on flag evaluation
-- [ ] Include `$feature_flag`, `$feature_flag_response`, `locally_evaluated`
-- [ ] Deduplicate events per distinct_id + flag + response
+- [x] Emit `$feature_flag_called` event on flag evaluation
+- [x] Include `$feature_flag`, `$feature_flag_response`, `locally_evaluated`
+- [x] Deduplicate events per distinct_id + flag + response
 
 ### Tests (Phase 3)
-- [ ] Parse v3 and v4 API response formats
-- [ ] `feature_enabled?` returns correct boolean
-- [ ] `feature_flag` returns variant strings
-- [ ] `all_flags` aggregates correctly
-- [ ] `send_feature_flags` injects properties into capture
-- [ ] `$feature_flag_called` event emission
-- [ ] Event deduplication
-- [ ] Error handling (timeout, connection errors)
+- [x] Parse v3 and v4 API response formats
+- [x] `feature_enabled?` returns correct boolean
+- [x] `feature_flag` returns variant strings
+- [x] `all_flags` aggregates correctly
+- [x] `send_feature_flags` injects properties into capture
+- [x] `$feature_flag_called` event emission
+- [x] Event deduplication
+- [x] Error handling (timeout, connection errors)
 
 ---
 
