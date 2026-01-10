@@ -3,17 +3,31 @@ require "json"
 require "log"
 
 require "./feature_flags/response"
+require "./feature_flags/errors"
+require "./feature_flags/local_evaluator"
+require "./feature_flags/poller"
 
 module PostHog
-  # Feature flags client for remote evaluation via the /decide API
+  # Feature flags client with support for both local and remote evaluation.
   #
-  # This provides server-side feature flag evaluation by calling PostHog's
-  # /decide endpoint. For low-latency use cases, consider using local evaluation
-  # (Phase 4) which requires a personal API key.
+  # By default, uses remote evaluation via the /flags API. When a personal_api_key
+  # is provided, enables local evaluation for low-latency decisions.
+  #
+  # Local evaluation:
+  # - Polls /api/feature_flag/local_evaluation/ for flag definitions
+  # - Evaluates flags locally using cached definitions
+  # - Falls back to remote evaluation when local evaluation fails
   #
   # Example:
   # ```
+  # # Remote evaluation only
   # client = PostHog::Client.new(api_key: "phc_xxx")
+  #
+  # # Local evaluation enabled
+  # client = PostHog::Client.new(
+  #   api_key: "phc_xxx",
+  #   personal_api_key: "phx_xxx"  # Enables local evaluation
+  # )
   #
   # # Check if a flag is enabled
   # if client.feature_enabled?("new-feature", "user_123")
@@ -22,15 +36,6 @@ module PostHog
   #
   # # Get a multivariate flag value
   # variant = client.feature_flag("experiment", "user_123")
-  # case variant
-  # when "control"
-  #   # Control group
-  # when "test"
-  #   # Test group
-  # end
-  #
-  # # Get all flags at once
-  # flags = client.all_flags("user_123")
   # ```
   class FeatureFlagsClient
     Log = ::Log.for(self)
@@ -49,6 +54,7 @@ module PostHog
       getter reason : String?
       getter version : Int64?
       getter flag_id : Int64?
+      getter locally_evaluated : Bool
 
       def initialize(
         @distinct_id : String,
@@ -59,7 +65,8 @@ module PostHog
         @evaluated_at : Int64? = nil,
         @reason : String? = nil,
         @version : Int64? = nil,
-        @flag_id : Int64? = nil
+        @flag_id : Int64? = nil,
+        @locally_evaluated : Bool = false
       )
       end
     end
@@ -145,10 +152,55 @@ module PostHog
     @flag_call_cache : Hash(String, FlagCallCacheEntry)
     @flag_call_cache_mutex : Mutex
 
+    # Local evaluation components
+    @local_evaluator : FeatureFlags::LocalEvaluator?
+    @poller : FeatureFlags::Poller?
+
     def initialize(@config : Config)
       @http_client = nil
       @flag_call_cache = Hash(String, FlagCallCacheEntry).new
       @flag_call_cache_mutex = Mutex.new
+
+      # Initialize local evaluation if personal_api_key is provided
+      if personal_key = @config.personal_api_key
+        @local_evaluator = FeatureFlags::LocalEvaluator.new
+        @poller = FeatureFlags::Poller.new(
+          api_key: @config.api_key,
+          personal_api_key: personal_key,
+          host: @config.normalized_host,
+          evaluator: @local_evaluator.not_nil!,
+          polling_interval: @config.feature_flags_polling_interval,
+          request_timeout: @config.feature_flag_request_timeout,
+          skip_ssl_verification: @config.skip_ssl_verification,
+          on_error: @config.on_error
+        )
+      end
+    end
+
+    # Start the local evaluation poller.
+    #
+    # Only has effect if personal_api_key was provided during initialization.
+    # Called automatically by Client when needed.
+    def start_poller : Nil
+      @poller.try(&.start)
+    end
+
+    # Stop the local evaluation poller.
+    def stop_poller : Nil
+      @poller.try(&.stop)
+    end
+
+    # Check if local evaluation is enabled.
+    def local_evaluation_enabled? : Bool
+      !@local_evaluator.nil?
+    end
+
+    # Manually reload feature flag definitions.
+    #
+    # Forces an immediate poll of the local evaluation endpoint.
+    # Only works if local evaluation is enabled.
+    def reload_feature_flags : Nil
+      @poller.try(&.poll_once)
     end
 
     # Check if a feature flag is enabled for a user
@@ -162,7 +214,7 @@ module PostHog
     # - `groups` - Group memberships for group-based flags
     # - `person_properties` - Properties for person-based targeting
     # - `group_properties` - Properties for group-based targeting
-    # - `only_evaluate_locally` - Skip server fallback (Phase 4 only)
+    # - `only_evaluate_locally` - Skip server fallback (returns nil if local fails)
     def feature_enabled?(
       key : String,
       distinct_id : String,
@@ -171,23 +223,25 @@ module PostHog
       group_properties : GroupProperties? = nil,
       only_evaluate_locally : Bool = false
     ) : Bool?
-      response = fetch_flags(
+      result = get_flag_result(
+        key: key,
         distinct_id: distinct_id,
         groups: groups,
         person_properties: person_properties,
-        group_properties: group_properties
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
       )
 
-      return nil if response.nil?
+      return nil if result.nil?
 
-      value = response.flag_enabled?(key)
-
-      # Track flag evaluation if we got a result
-      unless value.nil?
-        track_flag_call(key, distinct_id, response, response.get_flag(key))
+      case value = result[:value]
+      when Bool
+        value
+      when String
+        true # Any variant string means enabled
+      else
+        nil
       end
-
-      value
     end
 
     # Get the value of a feature flag
@@ -204,23 +258,16 @@ module PostHog
       group_properties : GroupProperties? = nil,
       only_evaluate_locally : Bool = false
     ) : FeatureFlags::FlagValue
-      response = fetch_flags(
+      result = get_flag_result(
+        key: key,
         distinct_id: distinct_id,
         groups: groups,
         person_properties: person_properties,
-        group_properties: group_properties
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
       )
 
-      return nil if response.nil?
-
-      value = response.get_flag(key)
-
-      # Track flag evaluation if we got a result
-      unless value.nil?
-        track_flag_call(key, distinct_id, response, value)
-      end
-
-      value
+      result.try { |r| r[:value] }
     end
 
     # Get all feature flags for a user
@@ -233,6 +280,29 @@ module PostHog
       group_properties : GroupProperties? = nil,
       only_evaluate_locally : Bool = false
     ) : Hash(String, FeatureFlags::FlagValue)
+      # Try local evaluation first
+      if evaluator = @local_evaluator
+        if evaluator.has_flags?
+          results = evaluator.evaluate_all(distinct_id, groups, person_properties, group_properties)
+          
+          # Check if any results need server fallback
+          needs_fallback = results.any? { |_, r| !r.locally_evaluated? }
+          
+          unless needs_fallback || only_evaluate_locally
+            # All evaluated locally, track and return
+            flags = Hash(String, FeatureFlags::FlagValue).new
+            results.each do |key, result|
+              flags[key] = result.value
+              track_local_flag_call(key, distinct_id, result)
+            end
+            return flags
+          end
+        end
+      end
+
+      # Fall back to remote evaluation
+      return Hash(String, FeatureFlags::FlagValue).new if only_evaluate_locally
+
       response = fetch_flags(
         distinct_id: distinct_id,
         groups: groups,
@@ -257,16 +327,16 @@ module PostHog
       group_properties : GroupProperties? = nil,
       only_evaluate_locally : Bool = false
     ) : JSON::Any?
-      response = fetch_flags(
+      result = get_flag_result(
+        key: key,
         distinct_id: distinct_id,
         groups: groups,
         person_properties: person_properties,
-        group_properties: group_properties
+        group_properties: group_properties,
+        only_evaluate_locally: only_evaluate_locally
       )
 
-      return nil if response.nil?
-
-      response.get_payload(key)
+      result.try { |r| r[:payload] }
     end
 
     # Get all flags and their payloads for a user
@@ -281,6 +351,38 @@ module PostHog
       group_properties : GroupProperties? = nil,
       only_evaluate_locally : Bool = false
     ) : NamedTuple(flags: Hash(String, FeatureFlags::FlagValue), payloads: Hash(String, JSON::Any))
+      # Try local evaluation first
+      if evaluator = @local_evaluator
+        if evaluator.has_flags?
+          results = evaluator.evaluate_all(distinct_id, groups, person_properties, group_properties)
+          
+          needs_fallback = results.any? { |_, r| !r.locally_evaluated? }
+          
+          unless needs_fallback || only_evaluate_locally
+            flags = Hash(String, FeatureFlags::FlagValue).new
+            payloads = Hash(String, JSON::Any).new
+            
+            results.each do |key, result|
+              flags[key] = result.value
+              if payload = result.payload
+                payloads[key] = payload
+              end
+              track_local_flag_call(key, distinct_id, result)
+            end
+            
+            return {flags: flags, payloads: payloads}
+          end
+        end
+      end
+
+      # Fall back to remote evaluation
+      if only_evaluate_locally
+        return {
+          flags:    Hash(String, FeatureFlags::FlagValue).new,
+          payloads: Hash(String, JSON::Any).new,
+        }
+      end
+
       response = fetch_flags(
         distinct_id: distinct_id,
         groups: groups,
@@ -310,18 +412,12 @@ module PostHog
       person_properties : Properties? = nil,
       group_properties : GroupProperties? = nil
     ) : Hash(String, JSON::Any)?
-      response = fetch_flags(
-        distinct_id: distinct_id,
-        groups: groups,
-        person_properties: person_properties,
-        group_properties: group_properties
-      )
-
-      return nil if response.nil? || response.empty?
+      flags = all_flags(distinct_id, groups, person_properties, group_properties)
+      return nil if flags.empty?
 
       # Convert FlagValue to JSON::Any
       result = Hash(String, JSON::Any).new
-      response.feature_flags.each do |key, value|
+      flags.each do |key, value|
         result[key] = case v = value
                       when Bool
                         JSON::Any.new(v)
@@ -353,7 +449,7 @@ module PostHog
             reason: entry.reason,
             version: entry.version,
             flag_id: entry.flag_id,
-            locally_evaluated: false
+            locally_evaluated: entry.locally_evaluated
           )
         end
         @flag_call_cache.clear
@@ -371,8 +467,63 @@ module PostHog
 
     # Shutdown and cleanup
     def shutdown : Nil
+      stop_poller
       @http_client.try(&.close)
       @http_client = nil
+    end
+
+    # Internal method to get flag result with local/remote fallback
+    private def get_flag_result(
+      key : String,
+      distinct_id : String,
+      groups : Hash(String, String)?,
+      person_properties : Properties?,
+      group_properties : GroupProperties?,
+      only_evaluate_locally : Bool
+    ) : NamedTuple(value: FeatureFlags::FlagValue, payload: JSON::Any?, locally_evaluated: Bool)?
+      # Try local evaluation first
+      if evaluator = @local_evaluator
+        if evaluator.has_flags?
+          result = evaluator.evaluate(key, distinct_id, groups, person_properties, group_properties)
+          
+          if result.locally_evaluated?
+            # Successfully evaluated locally
+            track_local_flag_call(key, distinct_id, result)
+            return {
+              value:            result.value,
+              payload:          result.payload,
+              locally_evaluated: true,
+            }
+          end
+          
+          # Local evaluation failed/inconclusive
+          Log.debug { "Flag #{key} local evaluation failed: #{result.reason}" }
+        end
+      end
+
+      # Fall back to remote evaluation
+      return nil if only_evaluate_locally
+
+      response = fetch_flags(
+        distinct_id: distinct_id,
+        groups: groups,
+        person_properties: person_properties,
+        group_properties: group_properties
+      )
+
+      return nil if response.nil?
+
+      value = response.get_flag(key)
+      return nil if value.nil?
+
+      # Track flag evaluation
+      track_flag_call(key, distinct_id, response, value)
+
+      {
+        value:            value,
+        payload:          response.get_payload(key),
+        locally_evaluated: false,
+      }
     end
 
     private def fetch_flags(
@@ -451,7 +602,33 @@ module PostHog
             evaluated_at: response.evaluated_at,
             reason: reason.try(&.description),
             version: metadata.try(&.version),
-            flag_id: metadata.try(&.id)
+            flag_id: metadata.try(&.id),
+            locally_evaluated: false
+          )
+        end
+      end
+    end
+
+    private def track_local_flag_call(
+      key : String,
+      distinct_id : String,
+      result : FeatureFlags::LocalEvaluator::EvaluationResult
+    ) : Nil
+      cache_key = "#{distinct_id}:#{key}:#{result.value}"
+
+      @flag_call_cache_mutex.synchronize do
+        unless @flag_call_cache.has_key?(cache_key)
+          @flag_call_cache[cache_key] = FlagCallCacheEntry.new(
+            distinct_id: distinct_id,
+            flag_key: key,
+            flag_value: result.value,
+            payload: result.payload,
+            request_id: nil,
+            evaluated_at: Time.utc.to_unix,
+            reason: result.reason,
+            version: result.flag_version,
+            flag_id: result.flag_id,
+            locally_evaluated: true
           )
         end
       end

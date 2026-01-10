@@ -60,6 +60,11 @@ module PostHog
         @worker = Worker.new(@config, @transport, @message_channel, @control_channel, on_processed)
         @worker.try(&.start)
       end
+
+      # Start local evaluation poller if personal_api_key is provided
+      if @config.personal_api_key
+        @feature_flags_client.start_poller
+      end
     end
 
     # Capture an event
@@ -184,6 +189,23 @@ module PostHog
     end
 
     # ===== Feature Flags API =====
+
+    # Check if local evaluation is enabled (personal_api_key was provided)
+    def local_evaluation_enabled? : Bool
+      @feature_flags_client.local_evaluation_enabled?
+    end
+
+    # Manually reload feature flag definitions from the server.
+    #
+    # Only works when local evaluation is enabled (personal_api_key provided).
+    # Useful for forcing an immediate refresh after flag changes.
+    #
+    # ```
+    # client.reload_feature_flags
+    # ```
+    def reload_feature_flags : Nil
+      @feature_flags_client.reload_feature_flags
+    end
 
     # Check if a feature flag is enabled for a user
     #
