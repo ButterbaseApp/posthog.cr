@@ -1,0 +1,14 @@
+/* Additional custom styles for PostHog Crystal SDK docs */
+
+:root {
+  --md-primary-fg-color: #4f46e5;
+  --md-accent-fg-color: #06b6d4;
+}
+
+.md-typeset code {
+  font-size: 0.85em;
+}
+
+.md-typeset pre > code {
+  font-size: 0.8em;
+}
