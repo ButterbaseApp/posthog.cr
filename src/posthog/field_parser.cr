@@ -137,6 +137,26 @@ module PostHog
       )
     end
 
+    # Parse fields for an exception event
+    def parse_for_exception(
+      distinct_id : String,
+      properties : Properties = Properties.new,
+      timestamp : Time = Time.utc
+    ) : Message
+      validate_presence!(distinct_id, "distinct_id")
+
+      props = build_base_properties(properties)
+
+      Message.new(
+        type: "exception",
+        event: "$exception",
+        distinct_id: distinct_id,
+        timestamp: Utils.iso8601(timestamp),
+        message_id: Utils.generate_uuid,
+        properties: props
+      )
+    end
+
     # Build base properties with library metadata
     private def build_base_properties(properties : Properties) : Properties
       props = Properties.new

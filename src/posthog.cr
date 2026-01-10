@@ -11,6 +11,7 @@ require "./posthog/response"
 require "./posthog/transport"
 require "./posthog/worker"
 require "./posthog/feature_flags"
+require "./posthog/exception_capture"
 require "./posthog/client"
 
 # PostHog Crystal SDK

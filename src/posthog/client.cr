@@ -188,6 +188,94 @@ module PostHog
       false
     end
 
+    # ===== Exception Capture API =====
+
+    # Capture an exception with stack trace
+    #
+    # ```
+    # begin
+    #   risky_operation
+    # rescue ex
+    #   client.capture_exception(ex, distinct_id: "user_123")
+    # end
+    # ```
+    #
+    # If distinct_id is not provided, a UUID will be generated and
+    # `$process_person_profile` will be set to `false`.
+    def capture_exception(
+      exception : Exception,
+      distinct_id : String? = nil,
+      properties : Properties = Properties.new,
+      timestamp : Time = Time.utc,
+      handled : Bool = true
+    ) : Bool
+      # Generate distinct_id if not provided
+      actual_distinct_id = distinct_id || Utils.generate_uuid
+
+      # Parse exception into properties
+      exception_props = ExceptionCapture.parse_exception(exception, handled)
+
+      # Merge with user properties (exception props first, then user props to allow override)
+      merged_props = exception_props.merge(properties)
+
+      # Set $process_person_profile to false if distinct_id was auto-generated
+      if distinct_id.nil?
+        merged_props["$process_person_profile"] = JSON::Any.new(false)
+      end
+
+      # Use FieldParser for consistency
+      message = FieldParser.parse_for_exception(
+        distinct_id: actual_distinct_id,
+        properties: merged_props,
+        timestamp: timestamp
+      )
+
+      enqueue(message)
+    rescue ex : FieldParser::ValidationError
+      Log.error { "Exception capture validation error: #{ex.message}" }
+      report_error(-1, ex.message || "Validation error")
+      false
+    end
+
+    # Capture an exception from a string message (no backtrace)
+    #
+    # ```
+    # client.capture_exception("Something went wrong", distinct_id: "user_123")
+    # ```
+    def capture_exception(
+      message : String,
+      distinct_id : String? = nil,
+      properties : Properties = Properties.new,
+      timestamp : Time = Time.utc
+    ) : Bool
+      # Generate distinct_id if not provided
+      actual_distinct_id = distinct_id || Utils.generate_uuid
+
+      # Parse message into properties
+      exception_props = ExceptionCapture.parse_message(message)
+
+      # Merge with user properties (exception props first, then user props to allow override)
+      merged_props = exception_props.merge(properties)
+
+      # Set $process_person_profile to false if distinct_id was auto-generated
+      if distinct_id.nil?
+        merged_props["$process_person_profile"] = JSON::Any.new(false)
+      end
+
+      # Use FieldParser for consistency
+      message_obj = FieldParser.parse_for_exception(
+        distinct_id: actual_distinct_id,
+        properties: merged_props,
+        timestamp: timestamp
+      )
+
+      enqueue(message_obj)
+    rescue ex : FieldParser::ValidationError
+      Log.error { "Exception capture validation error: #{ex.message}" }
+      report_error(-1, ex.message || "Validation error")
+      false
+    end
+
     # ===== Feature Flags API =====
 
     # Check if local evaluation is enabled (personal_api_key was provided)

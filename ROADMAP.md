@@ -225,45 +225,45 @@ Client-side feature flag evaluation for low-latency decisions.
 Automatic exception tracking with stack traces.
 
 ### Module Structure
-- [ ] `src/posthog/exception_capture.cr` — Exception serialization
+- [x] `src/posthog/exception_capture.cr` — Exception serialization
 
 ### API
-- [ ] `capture_exception(exception, distinct_id?, properties?)` — Capture exception event
+- [x] `capture_exception(exception, distinct_id?, properties?)` — Capture exception event
 
 ### Exception Payload
-- [ ] Event type: `$exception`
-- [ ] `$exception_list` array with exception details
-- [ ] Exception `type` (class name)
-- [ ] Exception `value` (message)
-- [ ] `mechanism` with `type: "generic"`, `handled: true`
+- [x] Event type: `$exception`
+- [x] `$exception_list` array with exception details
+- [x] Exception `type` (class name)
+- [x] Exception `value` (message)
+- [x] `mechanism` with `type: "generic"`, `handled: true`
 
 ### Stack Trace Parsing
-- [ ] Parse Crystal backtrace format
-- [ ] Extract `filename`, `abs_path`, `lineno`, `function`
-- [ ] Determine `in_app` (filter out stdlib/shards)
-- [ ] Limit to 50 frames
-- [ ] Reverse order (most recent first)
+- [x] Parse Crystal backtrace format
+- [x] Extract `filename`, `abs_path`, `lineno`, `function`
+- [x] Determine `in_app` (filter out stdlib/shards)
+- [x] Limit to 50 frames
+- [x] Reverse order (most recent first)
 
 ### Context Lines
-- [ ] Read source file for context (if available)
-- [ ] `context_line` — The error line
-- [ ] `pre_context` — 5 lines before
-- [ ] `post_context` — 5 lines after
+- [x] Read source file for context (if available)
+- [x] `context_line` — The error line
+- [x] `pre_context` — 5 lines before
+- [x] `post_context` — 5 lines after
 
 ### Edge Cases
-- [ ] String message input (no backtrace)
-- [ ] Missing distinct_id (generate UUID, set `$process_person_profile: false`)
-- [ ] File read errors (skip context silently)
+- [x] String message input (no backtrace)
+- [x] Missing distinct_id (generate UUID, set `$process_person_profile: false`)
+- [x] File read errors (skip context silently)
 
 ### Tests (Phase 5)
-- [ ] Exception with full backtrace
-- [ ] String message input
-- [ ] Missing distinct_id handling
-- [ ] Stack frame parsing
-- [ ] Context line extraction
-- [ ] In-app detection
-- [ ] Frame limit (50)
-- [ ] File not found handling
+- [x] Exception with full backtrace
+- [x] String message input
+- [x] Missing distinct_id handling
+- [x] Stack frame parsing
+- [x] Context line extraction
+- [x] In-app detection
+- [x] Frame limit (50)
+- [x] File not found handling
 
 ---
 
