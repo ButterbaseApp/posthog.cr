@@ -1,0 +1,101 @@
+# Zensical documentation configuration for PostHog Crystal SDK
+# https://zensical.org
+
+[project]
+site_name = "PostHog Crystal SDK"
+site_description = "Crystal SDK for PostHog analytics with async-first design, feature flags, and exception capture"
+site_author = "watzon"
+site_url = "https://posthog-cr-docs.wtz.nz/"
+repo_url = "https://github.com/watzon/posthog.cr"
+edit_uri = "edit/main/docs/"
+copyright = "Copyright &copy; 2026 Chris Watson"
+
+extra_css = ["assets/extra.css"]
+
+nav = [
+    {"Home" = "index.md"},
+    {"Guides" = [
+        "guides/getting-started.md",
+        {"Configuration" = "guides/configuration.md"},
+        {"Feature Flags" = "guides/feature-flags.md"},
+        {"Exception Capture" = "guides/exception-capture.md"},
+    ]},
+    {"API Reference" = [
+        "api/index.md",
+        {"Overview" = "api/index.md"},
+        {"Core" = [
+            {"PostHog::Client" = "api/posthog-client.md"},
+            {"PostHog::Config" = "api/posthog-config.md"},
+            {"PostHog::Worker" = "api/posthog-worker.md"},
+            {"PostHog::Transport" = "api/posthog-transport.md"},
+        ]},
+        {"Feature Flags" = [
+            {"PostHog::FeatureFlags" = "api/posthog-featureflags.md"},
+            {"LocalEvaluator" = "api/posthog-featureflags-localevaluator.md"},
+            {"Poller" = "api/posthog-featureflags-poller.md"},
+        ]},
+        {"Types" = [
+            {"Message" = "api/posthog-message.md"},
+            {"MessageBatch" = "api/posthog-messagebatch.md"},
+            {"Response" = "api/posthog-response.md"},
+        ]},
+    ]},
+    {"Roadmap" = "roadmap.md"},
+]
+
+[project.theme]
+language = "en"
+
+features = [
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.tracking",
+    "navigation.tabs",
+    "navigation.sections",
+    "navigation.path",
+    "navigation.top",
+    "navigation.footer",
+    "search.highlight",
+    "toc.follow",
+]
+
+# Color scheme - dark mode first (default)
+[[project.theme.palette]]
+scheme = "slate"
+primary = "indigo"
+accent = "cyan"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "cyan"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to dark mode"
+
+# Social links
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/watzon/posthog.cr"
+
+# Markdown extensions for syntax highlighting
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+
+[project.markdown_extensions.pymdownx.inlinehilite]
+
+[project.markdown_extensions.pymdownx.superfences]
+
+[project.markdown_extensions.pymdownx.snippets]
+
+[project.markdown_extensions.toc]
+permalink = "¶"
