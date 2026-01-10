@@ -272,18 +272,23 @@ Automatic exception tracking with stack traces.
 Production readiness, documentation, and release automation.
 
 ### Documentation
-- [ ] Comprehensive README with examples
-- [ ] API documentation (Crystal doc comments)
-- [ ] Configuration guide (Cloud vs self-hosted)
-- [ ] Feature flags usage guide
+- [x] Comprehensive README with examples
+- [x] API documentation (Crystal doc comments + auto-generation)
+- [x] Configuration guide (Cloud vs self-hosted)
+- [x] Feature flags usage guide
+- [x] Exception capture usage guide
+- [x] Getting started guide
+- [x] Documentation homepage (index.md)
+- [x] Zensical configuration for documentation site
+- [x] GitHub Actions workflow for documentation deployment
 - [ ] Migration guide from other SDKs
 
 ### Examples
-- [ ] Basic capture example
-- [ ] User identification flow
-- [ ] Group analytics example
-- [ ] Feature flags example
-- [ ] Exception capture example
+- [x] Basic capture example (in getting-started guide)
+- [x] User identification flow (in getting-started guide)
+- [x] Group analytics example (in getting-started guide)
+- [x] Feature flags example (in feature-flags guide)
+- [x] Exception capture example (in exception-capture guide)
 - [ ] Rails/Lucky/Amber integration examples
 
 ### Production Readiness
@@ -299,7 +304,7 @@ Production readiness, documentation, and release automation.
 - [ ] Automatic shard publishing
 
 ### Compatibility
-- [ ] Document minimum Crystal version
+- [x] Document minimum Crystal version
 - [ ] Test on multiple Crystal versions
 - [ ] Document self-hosted compatibility
 
