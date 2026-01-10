@@ -157,65 +157,66 @@ Server-side feature flag evaluation via `/flags` API.
 Client-side feature flag evaluation for low-latency decisions.
 
 ### Module Structure
-- [ ] `src/posthog/feature_flags/poller.cr` — Background polling fiber
-- [ ] `src/posthog/feature_flags/local_evaluator.cr` — Local evaluation engine
-- [ ] `src/posthog/feature_flags/property_matcher.cr` — Property matching operators
-- [ ] `src/posthog/feature_flags/cohort_matcher.cr` — Cohort evaluation
-- [ ] `src/posthog/feature_flags/hash.cr` — Consistent hashing for rollouts
+- [x] `src/posthog/feature_flags/poller.cr` — Background polling fiber
+- [x] `src/posthog/feature_flags/local_evaluator.cr` — Local evaluation engine
+- [x] `src/posthog/feature_flags/property_matcher.cr` — Property matching operators
+- [x] `src/posthog/feature_flags/cohort_matcher.cr` — Cohort evaluation
+- [x] `src/posthog/feature_flags/flag_hash.cr` — Consistent hashing for rollouts
+- [x] `src/posthog/feature_flags/errors.cr` — InconclusiveMatchError, RequiresServerEvaluation
 
 ### Configuration
-- [ ] `personal_api_key : String` — Required for local evaluation
-- [ ] `feature_flags_polling_interval : Int32` — Polling interval (default: 30s)
-- [ ] `feature_flag_request_timeout : Int32` — Timeout for flag requests (default: 3s)
+- [x] `personal_api_key : String` — Required for local evaluation
+- [x] `feature_flags_polling_interval : Int32` — Polling interval (default: 30s)
+- [x] `feature_flag_request_timeout : Int32` — Timeout for flag requests (default: 3s)
 
 ### Polling
-- [ ] Poll `/api/feature_flag/local_evaluation` endpoint
-- [ ] ETag support for cache validation (304 Not Modified)
-- [ ] Store flags, group type mapping, cohorts
-- [ ] `reload_feature_flags` manual refresh method
+- [x] Poll `/api/feature_flag/local_evaluation` endpoint
+- [x] ETag support for cache validation (304 Not Modified)
+- [x] Store flags, group type mapping, cohorts
+- [x] `reload_feature_flags` manual refresh method
 
 ### Property Matching Operators
-- [ ] `exact` — Exact match (case-insensitive)
-- [ ] `is_not` — Not equal
-- [ ] `is_set` — Property exists
-- [ ] `is_not_set` — Property does not exist
-- [ ] `icontains` — Case-insensitive contains
-- [ ] `not_icontains` — Does not contain
-- [ ] `regex` — Regular expression match
-- [ ] `not_regex` — Does not match regex
-- [ ] `gt`, `gte`, `lt`, `lte` — Numeric/string comparisons
-- [ ] `is_date_before`, `is_date_after` — Date comparisons
-- [ ] Relative date parsing (`-6h`, `1d`, `1w`, `1m`, `1y`)
+- [x] `exact` — Exact match (case-insensitive)
+- [x] `is_not` — Not equal
+- [x] `is_set` — Property exists
+- [x] `is_not_set` — Property does not exist
+- [x] `icontains` — Case-insensitive contains
+- [x] `not_icontains` — Does not contain
+- [x] `regex` — Regular expression match
+- [x] `not_regex` — Does not match regex
+- [x] `gt`, `gte`, `lt`, `lte` — Numeric/string comparisons
+- [x] `is_date_before`, `is_date_after` — Date comparisons
+- [x] Relative date parsing (`-6h`, `1d`, `1w`, `1m`, `1y`)
 
 ### Advanced Evaluation
-- [ ] Cohort matching (AND/OR groups)
-- [ ] Group type flags (aggregation by group)
-- [ ] Flag dependency chains
-- [ ] Multivariate rollout percentages
-- [ ] Consistent hashing for variant assignment
+- [x] Cohort matching (AND/OR groups)
+- [x] Group type flags (aggregation by group)
+- [x] Flag dependency chains
+- [x] Multivariate rollout percentages
+- [x] Consistent hashing for variant assignment
 
 ### Quota and Error Handling
-- [ ] Handle 402 quota limit response
-- [ ] `InconclusiveMatchError` for missing properties
-- [ ] `RequiresServerEvaluation` for static cohorts
-- [ ] Fallback to server evaluation when local fails
+- [x] Handle 402 quota limit response
+- [x] `InconclusiveMatchError` for missing properties
+- [x] `RequiresServerEvaluation` for static cohorts
+- [x] Fallback to server evaluation when local fails
 
 ### Remote Config
 - [ ] `remote_config_payload(flag_key)` — Get decrypted payload
 
 ### Tests (Phase 4)
-- [ ] Polling fetches and stores flag definitions
-- [ ] ETag prevents redundant downloads
-- [ ] All property operators match correctly
-- [ ] Relative date parsing
-- [ ] Cohort AND/OR logic
-- [ ] Group flag evaluation
-- [ ] Dependency chain resolution
-- [ ] Consistent hash distribution
-- [ ] Variant rollout percentages
-- [ ] Quota limit handling
-- [ ] Server fallback on inconclusive match
-- [ ] Static cohort triggers server evaluation
+- [x] Polling fetches and stores flag definitions
+- [x] ETag prevents redundant downloads
+- [x] All property operators match correctly
+- [x] Relative date parsing
+- [x] Cohort AND/OR logic
+- [x] Group flag evaluation
+- [x] Dependency chain resolution
+- [x] Consistent hash distribution
+- [x] Variant rollout percentages
+- [x] Quota limit handling
+- [x] Server fallback on inconclusive match
+- [x] Static cohort triggers server evaluation
 
 ---
 
