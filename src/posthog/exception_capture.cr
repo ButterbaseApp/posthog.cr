@@ -15,8 +15,17 @@ module PostHog
     struct StackFrame
       include JSON::Serializable
 
+      # Platform identifier - must be "custom" for PostHog Error Tracking
+      getter platform : String
+
+      # Programming language
+      getter lang : String
+
+      # Function name (required by PostHog)
+      getter function : String
+
       # Filename (relative or basename)
-      getter filename : String
+      getter filename : String?
 
       # Absolute path to the file
       @[JSON::Field(key: "abs_path")]
@@ -28,12 +37,12 @@ module PostHog
       # Column number
       getter colno : Int32?
 
-      # Function name
-      getter function : String?
-
       # Whether this frame is in application code (vs stdlib/shards)
       @[JSON::Field(key: "in_app")]
       getter in_app : Bool
+
+      # Whether the frame has been resolved (source maps, etc.)
+      getter resolved : Bool
 
       # The actual line of code
       @[JSON::Field(key: "context_line")]
@@ -48,15 +57,18 @@ module PostHog
       getter post_context : Array(String)?
 
       def initialize(
-        @filename : String,
+        @function : String,
+        @filename : String? = nil,
         @abs_path : String? = nil,
         @lineno : Int32? = nil,
         @colno : Int32? = nil,
-        @function : String? = nil,
         @in_app : Bool = false,
+        @resolved : Bool = true,
         @context_line : String? = nil,
         @pre_context : Array(String)? = nil,
-        @post_context : Array(String)? = nil
+        @post_context : Array(String)? = nil,
+        @platform : String = "custom",
+        @lang : String = "crystal"
       )
       end
     end
@@ -111,10 +123,13 @@ module PostHog
     struct Stacktrace
       include JSON::Serializable
 
+      # Stacktrace type - must be "raw" for PostHog Error Tracking
+      getter type : String
+
       # Stack frames (most recent first)
       getter frames : Array(StackFrame)
 
-      def initialize(@frames : Array(StackFrame) = [] of StackFrame)
+      def initialize(@frames : Array(StackFrame) = [] of StackFrame, @type : String = "raw")
       end
     end
 
@@ -190,7 +205,7 @@ module PostHog
         file_path = match[1]
         lineno = match[2].to_i
         colno = match[3]?.try(&.to_i)
-        function = match[4]?
+        function = match[4]? || "<unknown>"
 
         # Determine if in-app (not stdlib or shards)
         in_app = is_in_app?(file_path)
@@ -199,11 +214,11 @@ module PostHog
         context = extract_context(file_path, lineno)
 
         StackFrame.new(
+          function: function,
           filename: File.basename(file_path),
           abs_path: file_path,
           lineno: lineno,
           colno: colno,
-          function: function,
           in_app: in_app,
           context_line: context[:context_line],
           pre_context: context[:pre_context],
@@ -212,6 +227,7 @@ module PostHog
       else
         # Fallback for unparseable lines
         StackFrame.new(
+          function: "<unparseable>",
           filename: line,
           in_app: false
         )
