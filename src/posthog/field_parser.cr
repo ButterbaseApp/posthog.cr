@@ -141,8 +141,7 @@ module PostHog
     def parse_for_exception(
       distinct_id : String,
       properties : Properties = Properties.new,
-      timestamp : Time = Time.utc,
-      ip : String? = nil
+      timestamp : Time = Time.utc
     ) : Message
       validate_presence!(distinct_id, "distinct_id")
 
@@ -154,8 +153,7 @@ module PostHog
         distinct_id: distinct_id,
         timestamp: Utils.iso8601(timestamp),
         message_id: Utils.generate_uuid,
-        properties: props,
-        ip: ip
+        properties: props
       )
     end
 

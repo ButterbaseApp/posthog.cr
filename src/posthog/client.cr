@@ -202,16 +202,12 @@ module PostHog
     #
     # If distinct_id is not provided, a UUID will be generated and
     # `$process_person_profile` will be set to `false`.
-    #
-    # The `ip` parameter allows forwarding the real client IP for GeoIP lookup.
-    # When provided, PostHog uses this IP instead of the server's IP.
     def capture_exception(
       exception : Exception,
       distinct_id : String? = nil,
       properties : Properties = Properties.new,
       timestamp : Time = Time.utc,
-      handled : Bool = true,
-      ip : String? = nil
+      handled : Bool = true
     ) : Bool
       # Generate distinct_id if not provided
       actual_distinct_id = distinct_id || Utils.generate_uuid
@@ -231,8 +227,7 @@ module PostHog
       message = FieldParser.parse_for_exception(
         distinct_id: actual_distinct_id,
         properties: merged_props,
-        timestamp: timestamp,
-        ip: ip
+        timestamp: timestamp
       )
 
       enqueue(message)

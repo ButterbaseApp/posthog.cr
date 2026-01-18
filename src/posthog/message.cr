@@ -39,11 +39,6 @@ module PostHog
     @[JSON::Field(emit_null: false)]
     getter uuid : String?
 
-    # Optional IP address for GeoIP lookup
-    # When provided, PostHog uses this instead of the server's IP
-    @[JSON::Field(emit_null: false)]
-    getter ip : String?
-
     def initialize(
       @type : String,
       @event : String,
@@ -54,8 +49,7 @@ module PostHog
       @library : String = "posthog-crystal",
       @library_version : String = VERSION,
       @set_properties : Hash(String, JSON::Any)? = nil,
-      @uuid : String? = nil,
-      @ip : String? = nil
+      @uuid : String? = nil
     )
     end
 
